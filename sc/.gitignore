@@ -1,0 +1,49 @@
+# Compiler files (generados en compilación)
+cache/
+out/
+
+# Broadcast logs (generados en despliegues)
+broadcast/
+
+# Dependencias de Foundry (se instalan con forge install)
+lib/
+
+# Docs
+docs/
+
+# Dotenv file
+.env
+
+# Node modules
+node_modules/
+
+# Coverage
+coverage/
+coverage.json
+lcov.info
+
+# Typechain
+typechain/
+typechain-types/
+
+# Hardhat
+artifacts/
+cache_hardhat/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Test results
+test-results/
+*.log
+
+# Foundry lock file (opcional, algunos lo comitan)
+# foundry.lock
+
