@@ -100,3 +100,5 @@ coverage/
 *.lcov
 .nyc_output/
 
+
+*Zone.Identifier
