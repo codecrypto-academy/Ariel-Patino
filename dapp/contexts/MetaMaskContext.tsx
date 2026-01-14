@@ -1,24 +1,9 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react'
 import { ethers } from 'ethers'
 
-// Anvil mnemonic (default for development)
-const ANVIL_MNEMONIC = process.env.NEXT_PUBLIC_MNEMONIC || ""
-console.log('ANVIL_MNEMONIC', ANVIL_MNEMONIC)
-// Derive the 10 Anvil wallets from mnemonic
-const ANVIL_WALLETS = Array.from({ length: 20 }, (_, i) => {
-  // Create wallet from mnemonic with specific derivation path
-  const path = `m/44'/60'/0'/0/${i}`
-  const wallet = ethers.HDNodeWallet.fromPhrase(ANVIL_MNEMONIC, undefined, path)
-  
-  return {
-    address: wallet.address,
-    privateKey: wallet.privateKey,
-    index: i
-  }
-})
-
+// RPC URL for local Anvil (derived wallets are computed inside the provider)
 const RPC_URL = 'http://localhost:8545'
 
 interface MetaMaskContextType {
@@ -65,6 +50,26 @@ export function MetaMaskProvider({ children }: { children: ReactNode }) {
     console.log('🌐 Provider initialized:', RPC_URL)
   }, [])
 
+  // Derive Anvil wallets on client at mount (avoid top-level side-effects)
+  const MNEMONIC = process.env.NEXT_PUBLIC_MNEMONIC || ''
+  const anvilWallets = useMemo(() => {
+    if (!MNEMONIC) return []
+    try {
+      return Array.from({ length: 20 }, (_, i) => {
+        const path = `m/44'/60'/0'/0/${i}`
+        const wallet = ethers.HDNodeWallet.fromPhrase(MNEMONIC, undefined, path)
+        return { address: wallet.address, privateKey: wallet.privateKey, index: i }
+      })
+    } catch (err) {
+      console.error('Error deriving anvil wallets', err)
+      return []
+    }
+  }, [MNEMONIC])
+
+  useEffect(() => {
+    console.log('MM provider mounted')
+  }, [])
+
   const connect = async (walletIndex: number = 0) => {
     console.log('🔌 MetaMask Context connect called with walletIndex:', walletIndex)
     
@@ -72,11 +77,11 @@ export function MetaMaskProvider({ children }: { children: ReactNode }) {
       setIsConnecting(true)
       setError(null)
       
-      if (walletIndex < 0 || walletIndex >= ANVIL_WALLETS.length) {
+      if (walletIndex < 0 || walletIndex >= anvilWallets.length) {
         throw new Error('Invalid wallet index')
       }
 
-      const wallet = ANVIL_WALLETS[walletIndex]
+      const wallet = anvilWallets[walletIndex]
       console.log('📝 Wallet data:', { address: wallet.address, index: walletIndex })
       
       const jsonRpcProvider = new ethers.JsonRpcProvider(RPC_URL)
@@ -137,7 +142,7 @@ export function MetaMaskProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔧 Creating signer from wallet data...')
       // Create signer dynamically to avoid React state timing issues
-      const wallet = ANVIL_WALLETS[currentWalletIndex]
+      const wallet = anvilWallets[currentWalletIndex]
       const jsonRpcProvider = new ethers.JsonRpcProvider(RPC_URL)
       const walletSigner = new ethers.Wallet(wallet.privateKey, jsonRpcProvider)
       
@@ -156,7 +161,7 @@ export function MetaMaskProvider({ children }: { children: ReactNode }) {
       throw new Error('Not connected to wallet')
     }
     // Create signer dynamically to avoid React state timing issues
-    const wallet = ANVIL_WALLETS[currentWalletIndex]
+    const wallet = anvilWallets[currentWalletIndex]
     const jsonRpcProvider = new ethers.JsonRpcProvider(RPC_URL)
     const walletSigner = new ethers.Wallet(wallet.privateKey, jsonRpcProvider)
     return walletSigner
@@ -174,7 +179,7 @@ export function MetaMaskProvider({ children }: { children: ReactNode }) {
     getSigner,
     switchWallet,
     currentWalletIndex,
-    availableWallets: ANVIL_WALLETS.map((w, i) => ({
+    availableWallets: anvilWallets.map((w, i) => ({
       index: i,
       address: w.address
     }))
