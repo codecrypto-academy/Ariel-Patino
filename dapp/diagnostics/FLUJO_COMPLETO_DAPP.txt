@@ -1,0 +1,442 @@
+================================================================================
+ANÁLISIS COMPLETO DEL FLUJO DE LA DAPP - DOCUMENT SIGNER
+================================================================================
+Fecha: Enero 14, 2026
+Branch: document_signer
+Autor: Estudiante aprendiz
+
+================================================================================
+1. FLUJO DEL BOTÓN "CONNECT WALLET" ✅
+================================================================================
+
+TÍTULO: Flujo del botón "Connect Wallet" ✅
+
+DESCRIPCIÓN DETALLADA (paso a paso):
+
+1. Interacción en la UI
+   - Archivo: dapp/app/page.tsx
+   - Qué pasa: Al hacer click en el botón "Connect Wallet" se abre un selector 
+     (showWalletSelector). Al elegir uno de los wallets listados se llama a 
+     connect(wallet.index) (el botón de cada wallet).
+   - Estado visual: Mientras isConnecting es true el botón muestra "Connecting..." 
+     y queda deshabilitado.
+
+2. Llamada al hook/contexto
+   - connect viene de useMetaMask() (reexportado desde contexts/MetaMaskContext.tsx). 
+   - El componente no implementa la lógica, sólo dispara connect(index).
+
+3. Implementación de la conexión
+   - Archivo: dapp/contexts/MetaMaskContext.tsx
+   - Flujo interno de connect(walletIndex):
+     • Valida walletIndex.
+     • Marca isConnecting = true y limpia error.
+     • Usa la lista derivada anvilWallets (generada desde NEXT_PUBLIC_MNEMONIC) 
+       para tomar la dirección y clave privada del wallet seleccionado.
+     • Crea un ethers.JsonRpcProvider apuntando a RPC_URL = 'http://localhost:8545'.
+     • Actualiza el estado: currentWalletIndex, account (address), provider, 
+       isConnected = true, isConnecting = false.
+     • Si hay error, pone error y revierte estados 
+       (isConnecting = false, isConnected = false, account = null).
+
+4. Qué habilita la conexión
+   - Tras connect:
+     • availableWallets lista direcciones (derivadas del mnemonico).
+     • provider permite crear instancia de contrato (via useContract).
+     • getSigner() y signMessage() usan la clave privada del wallet seleccionado 
+       para firmar mensajes o crear un Signer para enviar transacciones.
+     • Ej.: firmar un mensaje (DocumentSigner) llama a signMessage(message) que 
+       crea new ethers.Wallet(wallet.privateKey, provider) y ejecuta 
+       walletSigner.signMessage(message).
+
+5. Desconexión y cambio de wallet
+   - disconnect() limpia account e isConnected.
+   - switchWallet(index) simplemente llama a connect(index) para cambiar de wallet.
+
+6. Interacción con el contrato
+   - useContract() crea la instancia new ethers.Contract(contractAddress, ABI, provider) 
+     cuando provider está presente.
+   - Para transacciones (p. ej. storeDocumentHash) se obtiene un signer con getSigner() 
+     y se conecta al contrato (contract.connect(signer)), luego se envía la tx.
+
+================================================================================
+2. ORIGEN Y RAZÓN DE LAS 20 WALLETS 🔍
+================================================================================
+
+TÍTULO: Origen y razón de las 20 wallets mostradas 🔍
+
+DESCRIPCIÓN DETALLADA:
+
+- De dónde salen:
+  Las 20 direcciones se derivan de un mnemonic (frase semilla) leído desde la 
+  variable de entorno NEXT_PUBLIC_MNEMONIC. El código usa la derivación HD 
+  estándar (BIP-44 para Ethereum) con la ruta m/44'/60'/0'/0/i para i = 0..19 
+  y crea una lista de wallets (dirección + clave privada). Estas wallets son 
+  generadas en el cliente y usadas para pruebas con Anvil 
+  (RPC local en http://localhost:8545).
+
+- Por qué son 20:
+  El número 20 viene de la llamada Array.from({ length: 20 }, ...) — es una 
+  elección del autor para mostrar/poner a disposición las primeras 20 cuentas 
+  derivadas del mnemonic. Es una convención práctica para tener varias cuentas 
+  de prueba disponibles; no es una regla protocolaria, puedes cambiar ese 
+  número si necesitas más o menos.
+
+- Qué implica en el flujo del dApp:
+  • availableWallets muestra esas direcciones en la UI y cada una tiene un 
+    index que se pasa a connect(index) cuando el usuario la selecciona.
+  • Internamente, las funciones signMessage y getSigner usan la clave privada 
+    derivada del índice seleccionado para crear un ethers.Wallet (firmar 
+    mensajes y enviar transacciones).
+  • Si NEXT_PUBLIC_MNEMONIC está vacío, anvilWallets será una lista vacía 
+    (no habrá wallets para seleccionar).
+
+- Seguridad / contexto:
+  Estas wallets son para entorno local/test (Anvil). No debes poner mnemonic 
+  reales en repositorios públicos ni usar estas claves para fondos reales.
+
+Ubicación del código:
+  - Archivo: dapp/contexts/MetaMaskContext.tsx
+  - Derivación: Array.from({ length: 20 }, (_, i) => { ... })
+  - Ruta: m/44'/60'/0'/0/${i}
+
+================================================================================
+3. FLUJO COMPLETO: UPLOAD DE UN ARCHIVO PNG 📤
+================================================================================
+
+TÍTULO: Flujo completo: Upload de un archivo PNG 📤
+
+DESCRIPCIÓN DETALLADA (paso a paso):
+
+1. Selección del archivo (UI)
+   - Archivo: dapp/components/FileUploader.tsx
+   - El usuario hace click en "Choose File" o arrastra el PNG al área de drag-drop.
+   - Se dispara handleFileChange (si click) o handleDrop (si drag).
+   - Ambos capturan el primer archivo y lo pasan al manejador.
+
+2. Inicio del proceso de hash
+   - handleFileChange guarda el archivo en estado (setFile(file)) y marca 
+     isCalculating = true.
+   - Se resetea error = null.
+   - Se llama a HashUtils.calculateFileHash(selectedFile).
+
+3. Cálculo del hash criptográfico
+   - Archivo: dapp/utils/hash.ts
+   - calculateFileHash():
+     • Convierte el archivo a ArrayBuffer (file.arrayBuffer()).
+     • Convierte ArrayBuffer a Uint8Array.
+     • Usa ethers.keccak256(uint8Array) para calcular el hash Keccak-256 
+       (igual al usado en Ethereum/Solidity).
+     • Retorna el hash en formato hexadecimal (string como "0x...").
+
+4. Actualización de estado con el hash
+   - setHash(fileHash) guarda el hash calculado.
+   - Se llama a onFileHash?.(fileHash) para notificar al componente padre 
+     (en este caso page.tsx → setDocumentHash(hash)).
+   - isCalculating = false (carga completada).
+
+5. Renderizado de la UI
+   - Se muestra:
+     • Info del archivo: nombre y tamaño.
+     • Hash en formato legible (SHA-256 completo).
+     • El hash queda almacenado y disponible para el siguiente paso (firmar).
+
+6. Uso del hash en flujos posteriores
+   - El hash se pasa a DocumentSigner que permite:
+     • Firmar el hash con la billetera conectada.
+     • Guardar el hash + firma en blockchain (contrato DocumentRegistry).
+
+- Si hay error (archivo inválido, lectura fallida, etc.):
+  • Se captura en catch y se guarda en error.
+  • Se muestra en rojo al usuario.
+  • isCalculating se pone en false.
+
+Resumen visual del flujo:
+PNG → Seleccionar/Drag → arrayBuffer() → Uint8Array → Keccak256() → 
+Hash (0x...) → setHash + setDocumentHash → Mostrar en UI → Listo para firmar
+
+================================================================================
+4. FLUJO COMPLETO: SIGN DOCUMENT 🔏
+================================================================================
+
+TÍTULO: Flujo completo: Sign Document 🔏
+
+DESCRIPCIÓN DETALLADA (paso a paso):
+
+1. Click en el botón "Sign Document"
+   - Archivo: dapp/components/DocumentSigner.tsx
+   - El usuario hace click en el botón azul "Sign Document".
+   - Se dispara handleSign().
+
+2. Validaciones previas
+   - Se verifica que exista documentHash (el archivo fue cargado).
+   - Se verifica que isConnected === true y account !== null 
+     (la billetera está conectada).
+   - Si falta alguno, muestra un alert() y se detiene el proceso.
+
+3. Confirmación del usuario
+   - Se muestra un diálogo de confirmación (window.confirm) que indica:
+     • El mensaje exacto a firmar: "Signing document with hash: {documentHash}"
+     • La dirección que firmará (signer): account
+     • Pidiendo confirmación explícita.
+   - Si el usuario cancela, se log y se detiene.
+
+4. Inicio de la firma
+   - setIsSigning(true) para mostrar estado de carga.
+   - Se limpia cualquier firma anterior (setSignature(''), setTimestamp(0), 
+     setTxHash('')).
+
+5. Llamada a signMessage()
+   - Archivo: dapp/contexts/MetaMaskContext.tsx
+   - Se invoca signMessage(message) con el mensaje completo a firmar.
+   - Internamente:
+     • Valida que account e isConnected sean válidos.
+     • Obtiene el wallet del índice currentWalletIndex de anvilWallets.
+     • Crea un ethers.JsonRpcProvider apuntando a http://localhost:8545.
+     • Crea un new ethers.Wallet(wallet.privateKey, jsonRpcProvider).
+     • Llama a walletSigner.signMessage(message) → firma el mensaje con la 
+       clave privada.
+     • Retorna la firma (string hexadecimal).
+
+6. Guardado de resultados
+   - La firma se guarda en setSignature(sig).
+   - Se obtiene timestamp actual: getCurrentTimestamp() → segundos Unix.
+   - Se guarda en setTimestamp(ts).
+   - Se llama onSigned?.(sig, ts) para notificar al componente padre.
+
+7. Muestra de éxito
+   - Se muestra un alert() con:
+     • ✅ "Document signed successfully!"
+     • Los primeros y últimos 20 caracteres de la firma (para verificar).
+   - Se renderiza la firma completa en un bloque verde con:
+     • Firma (hexadecimal completa).
+     • Timestamp (convertido a fecha legible).
+     • Signer Address (la dirección que firmó).
+
+8. Siguiente paso disponible
+   - Aparece un botón "Store on Blockchain" que permite guardar la firma 
+     en el contrato.
+
+- Si hay error (falla en firma, clave privada inválida, etc.):
+  • Se captura en catch y se muestra alert() con el error.
+  • Se pone isSigning = false.
+
+ENTRADAS (inputs):
+- documentHash: FileUploader → página (string "0x..." Keccak-256)
+- account: MetaMaskContext (string "0x..." dirección Ethereum)
+- isConnected: MetaMaskContext (boolean)
+- currentWalletIndex: MetaMaskContext (number 0-19)
+- anvilWallets[currentWalletIndex]: MetaMaskContext 
+  (derivado de mnemonic: { address, privateKey, index })
+
+SALIDAS (outputs):
+- signature: string (hexadecimal, ~132 caracteres) → Estado + UI
+- timestamp: number (segundos Unix) → Estado + UI
+- onSigned callback: ejecutado con (signature, timestamp) → Componente padre
+- Diálogo de confirmación: Visual → Usuario
+- Diálogo de éxito/error: Visual → Usuario
+
+Resumen visual del flujo:
+Click "Sign Document" → Validar documentHash + isConnected + account → 
+Mostrar confirm() con mensaje a firmar → Si OK: obtener wallet privado 
+[currentWalletIndex] → Crear ethers.Wallet(privateKey, provider) → 
+walletSigner.signMessage(message) → Firma criptográfica → setSignature(sig) + 
+setTimestamp(ts) → Mostrar UI verde con firma + timestamp + address → 
+Listo para "Store on Blockchain"
+
+================================================================================
+5. FLUJO COMPLETO: STORE ON BLOCKCHAIN ⛓️
+================================================================================
+
+TÍTULO: Flujo completo: Store on Blockchain ⛓️
+
+DESCRIPCIÓN DETALLADA (paso a paso):
+
+1. Click en el botón "Store on Blockchain"
+   - Archivo: dapp/components/DocumentSigner.tsx
+   - El usuario hace click en el botón índigo "Store on Blockchain" 
+     (aparece después de firmar).
+   - Se dispara handleStore().
+
+2. Validaciones previas
+   - Se verifica que existan:
+     • documentHash (archivo cargado).
+     • signature (documento firmado).
+     • timestamp (momento de la firma).
+   - Se verifica que isConnected === true y account !== null 
+     (billetera conectada).
+   - Si falta alguno, muestra un alert() y se detiene.
+
+3. Confirmación del usuario
+   - Se muestra un diálogo de confirmación (window.confirm) que muestra:
+     • Document Hash: {documentHash}
+     • Signer: account
+     • Timestamp: fecha/hora legible de la firma.
+     • Signature (primeros y últimos caracteres).
+     • Advertencia: "This action will require gas fees."
+   - Si el usuario cancela, se detiene el proceso.
+
+4. Inicio del almacenamiento
+   - setIsStoring(true) para mostrar estado de carga.
+   - Se limpia setTxHash('').
+
+5. Llamada a storeDocumentHash() (del hook useContract)
+   - Archivo: dapp/hooks/useContract.ts
+   - Se invoca: storeDocumentHash(documentHash, timestamp, signature, account).
+   - Validaciones internas:
+     • Verifica que contract, isConnected y account existan.
+     • Marca setIsLoading(true).
+
+6. Obtención del Signer y conexión al contrato
+   - const signer = await getSigner() obtiene un ethers.Wallet con la clave 
+     privada del wallet seleccionado.
+   - const contractWithSigner = contract.connect(signer) conecta el contrato 
+     a este signer (permite enviar transacciones).
+
+7. Envío de la transacción a la blockchain
+   - Se ejecuta:
+     const tx = await contractWithSigner.storeDocumentHash(hash, timestamp, 
+       signature, signerAddress)
+   - Esta llamada dispara la función storeDocumentHash en el contrato 
+     inteligente (Solidity) en Anvil.
+   - En la blockchain (Solidity):
+     • El contrato valida los parámetros.
+     • Guarda una estructura: { hash, timestamp, signer, signature }.
+     • Emite un evento DocumentStored(hash, signer, timestamp, signature).
+     • Devuelve un receipt con el transactionHash.
+
+8. Espera de confirmación
+   - await tx.wait() espera a que la transacción sea minada/incluida en un 
+     bloque (en Anvil es instantáneo).
+   - Se obtiene el hash de transacción: tx.hash.
+
+9. Guardado del resultado
+   - Se guarda el txHash en el estado: setTxHash(tx.hash || '').
+   - Se retorna el hash para que DocumentSigner lo use.
+
+10. Muestra de éxito en la UI
+    - Se muestra un alert() con:
+      • ✅ "Document stored successfully on blockchain!"
+      • Transaction Hash: {txHash}
+    - Se renderiza un bloque azul con:
+      • ✅ "Transaction Confirmed!"
+      • Hash de transacción (con link a Etherscan para ver detalles).
+      • Botón para resetear y empezar de nuevo.
+
+- Si hay error (contrato no disponible, transacción rechazada, gas 
+  insuficiente, etc.):
+  • Se captura en catch y se muestra alert() con el error.
+  • Se pone isStoring = false y setIsLoading(false).
+
+ENTRADAS (inputs):
+- documentHash: Estado DocumentSigner (string "0x..." Keccak-256)
+- signature: Resultado de signMessage() (string "0x..." ~132 chars)
+- timestamp: getCurrentTimestamp() (number segundos Unix)
+- account: MetaMaskContext (string "0x..." dirección signer)
+- signer (privado): MetaMaskContext (getSigner()) (ethers.Wallet)
+- contract: useContract (instancia) (ethers.Contract)
+- provider: MetaMaskContext (ethers.JsonRpcProvider en localhost:8545)
+
+SALIDAS (outputs):
+- txHash: string (hexadecimal, ~66 chars) → Estado + UI
+- Evento en blockchain: DocumentStored(hash, signer, timestamp, signature) 
+  → Blockchain
+- Estado del contrato: documents mapping actualizado → Blockchain (persistente)
+- Diálogo confirmación: Visual → Usuario
+- Diálogo éxito/error: Visual → Usuario
+- Link Etherscan: URL clickeable → Usuario
+
+Resumen visual del flujo:
+Click "Store on Blockchain" → Validar documentHash + signature + timestamp + 
+isConnected → Mostrar confirm() con detalles a guardar → Si OK: obtener 
+Signer (wallet privado) → Conectar contrato con signer: contract.connect(signer) 
+→ Ejecutar tx: storeDocumentHash(hash, timestamp, signature, address) → 
+Enviar a Anvil (blockchain local en localhost:8545) → await tx.wait() → 
+Transacción minada → Emitir evento DocumentStored en blockchain → 
+setTxHash(tx.hash) → Mostrar UI azul con txHash + link Etherscan → 
+Datos persistidos en blockchain (contrato)
+
+Resultado final: El documento, firma, timestamp y dirección están guardados 
+permanentemente en la blockchain, verificables públicamente. ✅
+
+================================================================================
+6. FLUJO COMPLETO: RESET ↺
+================================================================================
+
+TÍTULO: Flujo completo: Reset ↺
+
+DESCRIPCIÓN DETALLADA (paso a paso):
+
+1. Click en el botón "Reset"
+   - Archivo: dapp/components/DocumentSigner.tsx
+   - El usuario hace click en el botón gris "Reset" (aparece después de 
+     guardar en blockchain).
+   - Se dispara reset().
+
+2. Limpieza del estado local del componente
+   - setSignature('') → Borra la firma criptográfica almacenada.
+   - setTimestamp(0) → Limpia el timestamp de la firma.
+   - setTxHash('') → Borra el hash de transacción.
+
+3. Efecto visual en la UI
+   - Desaparece el bloque verde de "Document Signed Successfully!" que 
+     mostraba la firma.
+   - Desaparece el bloque azul de "Transaction Confirmed!" que mostraba 
+     el txHash.
+   - El botón "Reset" desaparece.
+   - Reaparece el botón "Sign Document" en su lugar (listo para firmar de nuevo).
+
+4. Estado del componente después del reset
+   - documentHash PERMANECE (el archivo sigue cargado).
+   - file PERMANECE (el archivo sigue en memoria).
+   - signature = '' (limpio).
+   - timestamp = 0 (limpio).
+   - txHash = '' (limpio).
+   - isSigning = false (no hay firma en progreso).
+   - isStoring = false (no hay almacenamiento en progreso).
+
+5. Opciones disponibles después del reset
+   - El usuario puede:
+     • Firmar de nuevo el mismo documento con el mismo wallet 
+       (o cambiar de wallet antes).
+     • Subir un nuevo archivo (ir atrás al componente FileUploader).
+     • Permanecer en la sección de firma para ejecutar otra operación.
+
+- Lo que NO sucede:
+  • NO se borra el documento de la blockchain.
+  • NO se desconecta la billetera.
+  • NO se afecta el estado global (MetaMaskContext, page.tsx).
+  • NO se limpia documentHash (el archivo sigue disponible).
+
+ENTRADAS (inputs):
+- signature (actual): Estado DocumentSigner (string ~132 chars)
+- timestamp (actual): Estado DocumentSigner (number segundos Unix)
+- txHash (actual): Estado DocumentSigner (string ~66 chars)
+
+SALIDAS (outputs):
+- signature: string (vacío: '') → Estado limpio
+- timestamp: number (cero: 0) → Estado limpio
+- txHash: string (vacío: '') → Estado limpio
+- Renderizado UI: Visual → Vuelve a mostrar "Sign Document" button
+- Bloque verde firma: Oculto → No se renderiza
+- Bloque azul transacción: Oculto → No se renderiza
+- isSigning: false (previo) → Mantiene
+- isStoring: false (previo) → Mantiene
+- documentHash: Sin cambios → Permanece para nuevo ciclo
+
+Resumen visual del flujo:
+Click "Reset" → reset() ejecutado → setSignature('') → setTimestamp(0) → 
+setTxHash('') → Componente re-renderiza → {!signature} = true → 
+Botón "Sign Document" reaparece → {signature && ...} = false → 
+Bloque verde desaparece → {txHash && ...} = false → Bloque azul desaparece 
+→ UI vuelve al estado de "Listo para firmar" → documentHash PERMANECE 
+(archivo aún cargado) → account PERMANECE (billetera aún conectada) → 
+Usuario puede:
+  - Firmar de nuevo (mismo o diferente wallet)
+  - Subir nuevo archivo
+
+Resultado final: Limpia solo el ciclo de firma/almacenamiento actual. 
+El documento, archivo y conexión permanecen. Permite repetir el proceso. ✅
+
+================================================================================
+FIN DEL ANÁLISIS
+================================================================================
