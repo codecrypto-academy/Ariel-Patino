@@ -17,21 +17,21 @@ Thumbs.db
 *.code-workspace
 
 ############################
-# Node / npm / pnpm / yarn
+# Node / npm / yarn / pnpm
 ############################
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+web/node_modules/
+web/npm-debug.log*
+web/yarn-debug.log*
+web/yarn-error.log*
+web/pnpm-debug.log*
 
 ############################
-# Next.js
+# Next.js (web/)
 ############################
-.next/
-out/
-build/
-.vercel/
+web/.next/
+web/out/
+web/build/
+web/.vercel/
 
 ############################
 # Environment variables
@@ -41,24 +41,18 @@ build/
 !.env.example
 
 ############################
-# Solidity / Foundry
+# Solidity / Foundry (sc/)
 ############################
-out/
-cache/
-broadcast/
-lib/
+sc/out/
+sc/cache/
+sc/broadcast/
+sc/lib/
 
 ############################
-# Hardhat / Truffle
+# Testing / Coverage
 ############################
-artifacts/
-typechain/
 coverage/
 coverage.json
-
-############################
-# Testing
-############################
 *.lcov
 
 ############################
@@ -69,9 +63,8 @@ tmp/
 temp/
 
 ############################
-# Identifiers
+# Identifier files (copied repo artifacts)
 ############################
-*.identifier
 *.Identifier
 
 ############################
