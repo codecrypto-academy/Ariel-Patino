@@ -100,5 +100,8 @@ coverage/
 *.lcov
 .nyc_output/
 
+# Copied from other repositories
+*.Identifier
 
-*Zone.Identifier
+# Web from other projects, ingnore files not related to document_signer
+web/src/lib
