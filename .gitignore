@@ -1,0 +1,82 @@
+############################
+# OS / System
+############################
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+*.log
+
+############################
+# Editors / IDEs
+############################
+.vscode/
+.idea/
+*.iml
+*.code-workspace
+
+############################
+# Node / npm / pnpm / yarn
+############################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+############################
+# Next.js
+############################
+.next/
+out/
+build/
+.vercel/
+
+############################
+# Environment variables
+############################
+.env
+.env.*
+!.env.example
+
+############################
+# Solidity / Foundry
+############################
+out/
+cache/
+broadcast/
+lib/
+
+############################
+# Hardhat / Truffle
+############################
+artifacts/
+typechain/
+coverage/
+coverage.json
+
+############################
+# Testing
+############################
+*.lcov
+
+############################
+# Temporary / Generated
+############################
+dist/
+tmp/
+temp/
+
+############################
+# Identifiers
+############################
+*.identifier
+*.Identifier
+
+############################
+# Misc
+############################
+*.bak
+*.old
+*.orig
