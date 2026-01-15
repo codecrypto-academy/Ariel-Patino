@@ -38,13 +38,22 @@ contract DocumentRegistry {
 
     // Modifiers
     modifier documentNotExists(bytes32 _hash) {
-        require(documents[_hash].signer == address(0), "Document already exists");
+        _documentNotExists(_hash);
         _;
     }
 
     modifier documentExists(bytes32 _hash) {
-        require(documents[_hash].signer != address(0), "Document does not exist");
+        _documentExists(_hash);
         _;
+    }
+
+    // Internal functions for modifier logic
+    function _documentNotExists(bytes32 _hash) internal view {
+        require(documents[_hash].signer == address(0), "Document already exists");
+    }
+
+    function _documentExists(bytes32 _hash) internal view {
+        require(documents[_hash].signer != address(0), "Document does not exist");
     }
 
     /**

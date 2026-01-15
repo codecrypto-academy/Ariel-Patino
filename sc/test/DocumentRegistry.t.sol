@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "forge-std/Test.sol";
-import "../src/DocumentRegistry.sol";
+import {Test} from "forge-std/Test.sol";
+import {DocumentRegistry} from "../src/DocumentRegistry.sol";
 
 contract DocumentRegistryTest is Test {
     DocumentRegistry public documentRegistry;
